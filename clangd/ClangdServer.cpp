@@ -183,13 +183,13 @@ void ClangdServer::setRootPath(PathRef RootPath) {
 }
 
 void ClangdServer::addDocument(PathRef File, StringRef Contents,
-                               WantDiagnostics WantDiags) {
+                               WantDiagnostics WantDiags, bool EmitOptimizationRemarks) {
   DocVersion Version = ++InternalVersion[File];
   ParseInputs Inputs = {getCompileCommand(File), FSProvider.getFileSystem(),
                         Contents.str()};
 
   Path FileStr = File.str();
-  WorkScheduler.update(File, std::move(Inputs), WantDiags,
+  WorkScheduler.update(File, std::move(Inputs), WantDiags, EmitOptimizationRemarks,
                        [this, FileStr, Version](std::vector<Diag> Diags) {
                          consumeDiagnostics(FileStr, Version, std::move(Diags));
                        });

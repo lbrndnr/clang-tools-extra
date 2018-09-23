@@ -1036,7 +1036,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   }
   auto &FrontendOpts = CI->getFrontendOpts();
   FrontendOpts.DisableFree = false;
-  FrontendOpts.SkipFunctionBodies = true;
+  // FrontendOpts.SkipFunctionBodies = true;
   CI->getLangOpts()->CommentOpts.ParseAllComments = true;
   // Disable typo correction in Sema.
   CI->getLangOpts()->SpellChecking = false;

@@ -1,5 +1,20 @@
-set(LLVM_LINK_COMPONENTS
+set( LLVM_LINK_COMPONENTS
+  ${LLVM_TARGETS_TO_BUILD}
+  Analysis
+  CodeGen
+  Core
+  IPO
+  AggressiveInstCombine
+  InstCombine
+  Instrumentation
+  MC
+  MCParser
+  ObjCARCOpts
+  Option
+  ScalarOpts
   Support
+  TransformUtils
+  Vectorize
   )
 
 set(CLANGD_ATOMIC_LIB "")
@@ -55,6 +70,7 @@ add_clang_library(clangDaemon
   clangAST
   clangASTMatchers
   clangBasic
+  clangCodeGen
   clangDriver
   clangFormat
   clangFrontend

@@ -101,7 +101,9 @@ public:
   /// Schedule an update for \p File. Adds \p File to a list of tracked files if
   /// \p File was not part of it before.
   /// FIXME(ibiryukov): remove the callback from this function.
-  void update(PathRef File, ParseInputs Inputs, WantDiagnostics WD,
+  void update(PathRef File, ParseInputs Inputs, WantDiagnostics WD, bool EmitOptimizationRemarks,
+              llvm::unique_function<void(std::vector<Diag>)> OnUpdated);
+  void update(PathRef File, ParseInputs Inputs, WantDiagnostics WD, 
               llvm::unique_function<void(std::vector<Diag>)> OnUpdated);
 
   /// Remove \p File from the list of tracked files and schedule removal of its

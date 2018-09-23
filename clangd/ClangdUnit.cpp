@@ -18,6 +18,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/CodeGen/CodeGenAction.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexingAction.h"
@@ -32,7 +33,9 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/TargetSelect.h"
 #include <algorithm>
+#include <iostream>
 
 using namespace clang::clangd;
 using namespace clang;
@@ -125,7 +128,8 @@ ParsedAST::build(std::unique_ptr<clang::CompilerInvocation> CI,
                  std::shared_ptr<const PreambleData> Preamble,
                  std::unique_ptr<llvm::MemoryBuffer> Buffer,
                  std::shared_ptr<PCHContainerOperations> PCHs,
-                 IntrusiveRefCntPtr<vfs::FileSystem> VFS) {
+                 IntrusiveRefCntPtr<vfs::FileSystem> VFS,
+                 bool EmitOptimizationRemarks) {
   assert(CI);
   // Command-line parsing sets DisableFree to true by default, but we don't want
   // to leak memory in clangd.
@@ -144,7 +148,16 @@ ParsedAST::build(std::unique_ptr<clang::CompilerInvocation> CI,
   llvm::CrashRecoveryContextCleanupRegistrar<CompilerInstance> CICleanup(
       Clang.get());
 
-  auto Action = llvm::make_unique<ClangdFrontendAction>();
+  llvm::InitializeAllTargets();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmPrinters();
+  llvm::InitializeAllAsmParsers();
+
+  std::unique_ptr<ASTFrontendAction> Action = nullptr;
+  if (EmitOptimizationRemarks)
+    Action = llvm::make_unique<EmitCodeGenOnlyAction>();
+  else
+    Action = llvm::make_unique<ClangdFrontendAction>();
   const FrontendInputFile &MainInput = Clang->getFrontendOpts().Inputs[0];
   if (!Action->BeginSourceFile(*Clang, MainInput)) {
     log("BeginSourceFile() failed when building AST for {0}",
@@ -167,7 +180,8 @@ ParsedAST::build(std::unique_ptr<clang::CompilerInvocation> CI,
   // CompilerInstance won't run this callback, do it directly.
   ASTDiags.EndSourceFile();
 
-  std::vector<Decl *> ParsedDecls = Action->takeTopLevelDecls();
+  // std::vector<Decl *> ParsedDecls = Action->takeTopLevelDecls();
+  std::vector<Decl *> ParsedDecls;
   std::vector<Diag> Diags = ASTDiags.take();
   // Add diagnostics from the preamble, if any.
   if (Preamble)
@@ -323,7 +337,7 @@ std::shared_ptr<const PreambleData> clangd::buildPreamble(
   // Skip function bodies when building the preamble to speed up building
   // the preamble and make it smaller.
   assert(!CI.getFrontendOpts().SkipFunctionBodies);
-  CI.getFrontendOpts().SkipFunctionBodies = true;
+  // CI.getFrontendOpts().SkipFunctionBodies = true;
   // We don't want to write comment locations into PCH. They are racy and slow
   // to read back. We rely on dynamic index for the comments instead.
   CI.getPreprocessorOpts().WriteCommentListToPCH = false;
@@ -356,7 +370,7 @@ std::shared_ptr<const PreambleData> clangd::buildPreamble(
 
 llvm::Optional<ParsedAST> clangd::buildAST(
     PathRef FileName, std::unique_ptr<CompilerInvocation> Invocation,
-    const ParseInputs &Inputs, std::shared_ptr<const PreambleData> Preamble,
+    const ParseInputs &Inputs, bool EmitOptimizationRemarks, std::shared_ptr<const PreambleData> Preamble,
     std::shared_ptr<PCHContainerOperations> PCHs) {
   trace::Span Tracer("BuildAST");
   SPAN_ATTACH(Tracer, "File", FileName);
@@ -369,7 +383,7 @@ llvm::Optional<ParsedAST> clangd::buildAST(
 
   return ParsedAST::build(
       llvm::make_unique<CompilerInvocation>(*Invocation), Preamble,
-      llvm::MemoryBuffer::getMemBufferCopy(Inputs.Contents), PCHs, Inputs.FS);
+      llvm::MemoryBuffer::getMemBufferCopy(Inputs.Contents), PCHs, Inputs.FS, EmitOptimizationRemarks);
 }
 
 SourceLocation clangd::getBeginningOfIdentifier(ParsedAST &Unit,

@@ -72,7 +72,8 @@ public:
         std::shared_ptr<const PreambleData> Preamble,
         std::unique_ptr<llvm::MemoryBuffer> Buffer,
         std::shared_ptr<PCHContainerOperations> PCHs,
-        IntrusiveRefCntPtr<vfs::FileSystem> VFS);
+        IntrusiveRefCntPtr<vfs::FileSystem> VFS,
+        bool EmitOptimizationRemarks = false);
 
   ParsedAST(ParsedAST &&Other);
   ParsedAST &operator=(ParsedAST &&Other);
@@ -153,7 +154,7 @@ buildPreamble(PathRef FileName, CompilerInvocation &CI,
 /// result of calling buildPreamble.
 llvm::Optional<ParsedAST>
 buildAST(PathRef FileName, std::unique_ptr<CompilerInvocation> Invocation,
-         const ParseInputs &Inputs,
+         const ParseInputs &Inputs, bool EmitOptimizationRemarks,
          std::shared_ptr<const PreambleData> Preamble,
          std::shared_ptr<PCHContainerOperations> PCHs);
 

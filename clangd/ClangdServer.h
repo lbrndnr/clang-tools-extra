@@ -121,7 +121,8 @@ public:
   /// separate thread. When the parsing is complete, DiagConsumer passed in
   /// constructor will receive onDiagnosticsReady callback.
   void addDocument(PathRef File, StringRef Contents,
-                   WantDiagnostics WD = WantDiagnostics::Auto);
+                   WantDiagnostics WD = WantDiagnostics::Auto, 
+                   bool EmitOptimizationRemarks = false);
 
   /// Remove \p File from list of tracked files, schedule a request to free
   /// resources associated with it.

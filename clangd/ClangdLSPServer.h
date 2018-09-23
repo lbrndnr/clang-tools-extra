@@ -60,6 +60,7 @@ private:
   void onDocumentDidOpen(DidOpenTextDocumentParams &Params) override;
   void onDocumentDidChange(DidChangeTextDocumentParams &Params) override;
   void onDocumentDidClose(DidCloseTextDocumentParams &Params) override;
+  void onDocumentDidSave(DidSaveTextDocumentParams &Params) override;
   void
   onDocumentOnTypeFormatting(DocumentOnTypeFormattingParams &Params) override;
   void

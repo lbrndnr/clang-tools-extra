@@ -82,7 +82,7 @@ bool isInsideMainFile(const clang::Diagnostic &D) {
 }
 
 bool isNote(DiagnosticsEngine::Level L) {
-  return L == DiagnosticsEngine::Note || L == DiagnosticsEngine::Remark;
+  return L == DiagnosticsEngine::Note;
 }
 
 llvm::StringRef diagLeveltoString(DiagnosticsEngine::Level Lvl) {

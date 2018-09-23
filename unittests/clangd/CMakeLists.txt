@@ -45,6 +45,7 @@ target_link_libraries(ClangdTests
   PRIVATE
   clangAST
   clangBasic
+  clangCodeGen
   clangDaemon
   clangFormat
   clangFrontend

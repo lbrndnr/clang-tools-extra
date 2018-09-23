@@ -175,7 +175,7 @@ public:
                                 ParsingCallbacks &Callbacks);
   ~ASTWorker();
 
-  void update(ParseInputs Inputs, WantDiagnostics,
+  void update(ParseInputs Inputs, WantDiagnostics, bool EmitOptimizationRemarks,
               llvm::unique_function<void(std::vector<Diag>)> OnUpdated);
   void
   runWithAST(llvm::StringRef Name,
@@ -334,7 +334,7 @@ ASTWorker::~ASTWorker() {
 }
 
 void ASTWorker::update(
-    ParseInputs Inputs, WantDiagnostics WantDiags,
+    ParseInputs Inputs, WantDiagnostics WantDiags, bool EmitOptimizationRemarks,
     llvm::unique_function<void(std::vector<Diag>)> OnUpdated) {
   auto Task = [=](decltype(OnUpdated) OnUpdated) mutable {
     // Will be used to check if we can avoid rebuilding the AST.
@@ -411,7 +411,7 @@ void ASTWorker::update(
     llvm::Optional<std::unique_ptr<ParsedAST>> AST = IdleASTs.take(this);
     if (!AST) {
       llvm::Optional<ParsedAST> NewAST =
-          buildAST(FileName, std::move(Invocation), Inputs, NewPreamble, PCHs);
+          buildAST(FileName, std::move(Invocation), Inputs, EmitOptimizationRemarks, NewPreamble, PCHs);
       AST = NewAST ? llvm::make_unique<ParsedAST>(std::move(*NewAST)) : nullptr;
     }
     // We want to report the diagnostics even if this update was cancelled.
@@ -444,7 +444,7 @@ void ASTWorker::runWithAST(
           Invocation
               ? buildAST(FileName,
                          llvm::make_unique<CompilerInvocation>(*Invocation),
-                         FileInputs, getPossiblyStalePreamble(), PCHs)
+                         FileInputs, false, getPossiblyStalePreamble(), PCHs)
               : llvm::None;
       AST = NewAST ? llvm::make_unique<ParsedAST>(std::move(*NewAST)) : nullptr;
     }
@@ -700,7 +700,7 @@ bool TUScheduler::blockUntilIdle(Deadline D) const {
 }
 
 void TUScheduler::update(
-    PathRef File, ParseInputs Inputs, WantDiagnostics WantDiags,
+    PathRef File, ParseInputs Inputs, WantDiagnostics WantDiags, bool EmitOptimizationRemarks,
     llvm::unique_function<void(std::vector<Diag>)> OnUpdated) {
   std::unique_ptr<FileData> &FD = Files[File];
   if (!FD) {
@@ -714,7 +714,11 @@ void TUScheduler::update(
     FD->Contents = Inputs.Contents;
     FD->Command = Inputs.CompileCommand;
   }
-  FD->Worker->update(std::move(Inputs), WantDiags, std::move(OnUpdated));
+  FD->Worker->update(std::move(Inputs), WantDiags, EmitOptimizationRemarks, std::move(OnUpdated));
+}
+
+void TUScheduler::update(PathRef File, ParseInputs Inputs, WantDiagnostics WD, llvm::unique_function<void(std::vector<Diag>)> OnUpdated) {
+  this->update(File, Inputs, WD, false, std::move(OnUpdated));
 }
 
 void TUScheduler::remove(PathRef File) {

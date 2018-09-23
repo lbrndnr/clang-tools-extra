@@ -72,6 +72,30 @@ Position pos(int line, int character) {
   return Res;
 }
 
+TEST(DiagnosticsTest, OptimizationRemarks) {
+  Annotations Test(R"cpp(
+void test(int *A, int Length) {
+#pragma clang loop vectorize(enable) interleave(enable)
+    $loop[[for]] (int i = 0; i < Length; i++) {
+        A[i] = i;
+        if (A[i] > Length)
+        break;
+    }
+}
+
+int main() {}
+      )cpp");
+
+  TestTU TU = TestTU::withCode(Test.code());
+  auto Diags = TU.build().getDiagnostics();
+
+  EXPECT_THAT(
+      Diags,
+      ElementsAre(
+          // This range spans lines.
+          Diag(Test.range("loop"), "vectorized loop (vectorization width: 4, interleaved count: 2)")));
+}
+
 TEST(DiagnosticsTest, DiagnosticRanges) {
   // Check we report correct ranges, including various edge-cases.
   Annotations Test(R"cpp(

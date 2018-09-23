@@ -37,6 +37,7 @@ public:
   virtual void onDocumentDidOpen(DidOpenTextDocumentParams &Params) = 0;
   virtual void onDocumentDidChange(DidChangeTextDocumentParams &Params) = 0;
   virtual void onDocumentDidClose(DidCloseTextDocumentParams &Params) = 0;
+  virtual void onDocumentDidSave(DidSaveTextDocumentParams &Params) = 0;
   virtual void onDocumentFormatting(DocumentFormattingParams &Params) = 0;
   virtual void onDocumentSymbol(DocumentSymbolParams &Params) = 0;
   virtual void

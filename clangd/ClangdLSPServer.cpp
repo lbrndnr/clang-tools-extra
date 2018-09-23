@@ -99,7 +99,14 @@ void ClangdLSPServer::onInitialize(InitializeParams &Params) {
   reply(json::Object{
       {{"capabilities",
         json::Object{
-            {"textDocumentSync", (int)TextDocumentSyncKind::Incremental},
+            {"textDocumentSync",  
+             json::Object{ 
+                 {"change", (int)TextDocumentSyncKind::Incremental},
+                 {"save", 
+                   json::Object{
+                     {"inclueText", true}
+                   }},
+             }},
             {"documentFormattingProvider", true},
             {"documentRangeFormattingProvider", true},
             {"documentOnTypeFormattingProvider",
@@ -254,6 +261,16 @@ void ClangdLSPServer::onDocumentDidClose(DidCloseTextDocumentParams &Params) {
   DraftMgr.removeDraft(File);
   Server.removeDocument(File);
   CDB.invalidate(File);
+}
+
+void ClangdLSPServer::onDocumentDidSave(DidSaveTextDocumentParams &Params) {
+  PathRef File = Params.textDocument.uri.file();
+  llvm::Optional<std::string> Code = DraftMgr.getDraft(File);
+  if (!Code)
+    return replyError(ErrorCode::InvalidParams,
+                      "onDocumentOnTypeFormatting called for non-added file");
+
+  Server.addDocument(File, *Code, WantDiagnostics::Yes, true);
 }
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(

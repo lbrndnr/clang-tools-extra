@@ -289,6 +289,11 @@ bool fromJSON(const json::Value &Params, DidCloseTextDocumentParams &R) {
   return O && O.map("textDocument", R.textDocument);
 }
 
+bool fromJSON(const json::Value &Params, DidSaveTextDocumentParams &R) {
+  json::ObjectMapper O(Params);
+  return O && O.map("textDocument", R.textDocument);
+}
+
 bool fromJSON(const json::Value &Params, DidChangeTextDocumentParams &R) {
   json::ObjectMapper O(Params);
   return O && O.map("textDocument", R.textDocument) &&
