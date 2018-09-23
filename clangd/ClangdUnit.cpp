@@ -180,8 +180,10 @@ ParsedAST::build(std::unique_ptr<clang::CompilerInvocation> CI,
   // CompilerInstance won't run this callback, do it directly.
   ASTDiags.EndSourceFile();
 
-  // std::vector<Decl *> ParsedDecls = Action->takeTopLevelDecls();
   std::vector<Decl *> ParsedDecls;
+  if (!EmitOptimizationRemarks) {
+    ParsedDecls = ((ClangdFrontendAction*)Action.get())->takeTopLevelDecls();
+  }
   std::vector<Diag> Diags = ASTDiags.take();
   // Add diagnostics from the preamble, if any.
   if (Preamble)

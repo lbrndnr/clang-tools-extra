@@ -372,7 +372,7 @@ void ASTWorker::update(
           Callbacks.onPreambleAST(FileName, Ctx, std::move(PP));
         });
 
-    bool CanReuseAST = InputsAreTheSame && (OldPreamble == NewPreamble);
+    bool CanReuseAST = InputsAreTheSame && (OldPreamble == NewPreamble) && !EmitOptimizationRemarks;
     {
       std::lock_guard<std::mutex> Lock(Mutex);
       LastBuiltPreamble = NewPreamble;
