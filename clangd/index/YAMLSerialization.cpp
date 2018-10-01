@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SymbolYAML.h"
 #include "Index.h"
 #include "Serialization.h"
 #include "Trace.h"
@@ -16,10 +15,10 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdint>
 
-LLVM_YAML_IS_DOCUMENT_LIST_VECTOR(clang::clangd::Symbol)
 LLVM_YAML_IS_SEQUENCE_VECTOR(clang::clangd::Symbol::IncludeHeaderWithReferences)
 
 namespace llvm {
@@ -28,6 +27,7 @@ namespace yaml {
 using clang::clangd::Symbol;
 using clang::clangd::SymbolID;
 using clang::clangd::SymbolLocation;
+using clang::clangd::SymbolOrigin;
 using clang::index::SymbolInfo;
 using clang::index::SymbolKind;
 using clang::index::SymbolLanguage;
@@ -40,10 +40,13 @@ struct NormalizedSymbolID {
     OS << ID;
   }
 
-  SymbolID denormalize(IO &) {
-    SymbolID ID;
-    HexString >> ID;
-    return ID;
+  SymbolID denormalize(IO &I) {
+    auto ID = SymbolID::fromStr(HexString);
+    if (!ID) {
+      I.setError(llvm::toString(ID.takeError()));
+      return SymbolID();
+    }
+    return *ID;
   }
 
   std::string HexString;
@@ -60,6 +63,17 @@ struct NormalizedSymbolFlag {
   }
 
   uint8_t Flag = 0;
+};
+
+struct NormalizedSymbolOrigin {
+  NormalizedSymbolOrigin(IO &) {}
+  NormalizedSymbolOrigin(IO &, SymbolOrigin O) {
+    Origin = static_cast<uint8_t>(O);
+  }
+
+  SymbolOrigin denormalize(IO &) { return static_cast<SymbolOrigin>(Origin); }
+
+  uint8_t Origin = 0;
 };
 
 template <> struct MappingTraits<SymbolLocation::Position> {
@@ -99,6 +113,8 @@ template <> struct MappingTraits<Symbol> {
     MappingNormalization<NormalizedSymbolID, SymbolID> NSymbolID(IO, Sym.ID);
     MappingNormalization<NormalizedSymbolFlag, Symbol::SymbolFlag> NSymbolFlag(
         IO, Sym.Flags);
+    MappingNormalization<NormalizedSymbolOrigin, SymbolOrigin> NSymbolOrigin(
+        IO, Sym.Origin);
     IO.mapRequired("ID", NSymbolID->HexString);
     IO.mapRequired("Name", Sym.Name);
     IO.mapRequired("Scope", Sym.Scope);
@@ -107,6 +123,7 @@ template <> struct MappingTraits<Symbol> {
                    SymbolLocation());
     IO.mapOptional("Definition", Sym.Definition, SymbolLocation());
     IO.mapOptional("References", Sym.References, 0u);
+    IO.mapOptional("Origin", NSymbolOrigin->Origin);
     IO.mapOptional("Flags", NSymbolFlag->Flag);
     IO.mapOptional("Signature", Sym.Signature);
     IO.mapOptional("CompletionSnippetSuffix", Sym.CompletionSnippetSuffix);
@@ -168,65 +185,45 @@ template <> struct ScalarEnumerationTraits<SymbolKind> {
 namespace clang {
 namespace clangd {
 
-SymbolSlab symbolsFromYAML(llvm::StringRef YAMLContent) {
-  llvm::yaml::Input Yin(YAMLContent);
-  std::vector<Symbol> S;
-  Yin >> S;
-
-  SymbolSlab::Builder Syms;
-  for (auto &Sym : S)
-    Syms.insert(Sym);
-  return std::move(Syms).build();
+void writeYAML(const IndexFileOut &O, raw_ostream &OS) {
+  llvm::yaml::Output Yout(OS);
+  for (Symbol Sym : *O.Symbols) // copy: Yout<< requires mutability.
+    Yout << Sym;
 }
 
-Symbol SymbolFromYAML(llvm::yaml::Input &Input) {
+Expected<IndexFileIn> readYAML(StringRef Data) {
+  SymbolSlab::Builder Symbols;
+  llvm::yaml::Input Yin(Data);
+  do {
+    Symbol S;
+    Yin >> S;
+    if (Yin.error())
+      return llvm::errorCodeToError(Yin.error());
+    Symbols.insert(S);
+  } while (Yin.nextDocument());
+
+  IndexFileIn Result;
+  Result.Symbols.emplace(std::move(Symbols).build());
+  return std::move(Result);
+}
+
+std::string toYAML(const Symbol &S) {
+  std::string Buf;
+  {
+    llvm::raw_string_ostream OS(Buf);
+    llvm::yaml::Output Yout(OS);
+    Symbol Sym = S; // copy: Yout<< requires mutability.
+    OS << Sym;
+  }
+  return Buf;
+}
+
+Expected<Symbol> symbolFromYAML(llvm::yaml::Input &Yin) {
   Symbol S;
-  Input >> S;
+  Yin >> S;
+  if (Yin.error())
+    return llvm::errorCodeToError(Yin.error());
   return S;
-}
-
-void SymbolsToYAML(const SymbolSlab &Symbols, llvm::raw_ostream &OS) {
-  llvm::yaml::Output Yout(OS);
-  for (Symbol S : Symbols) // copy: Yout<< requires mutability.
-    Yout << S;
-}
-
-std::string SymbolToYAML(Symbol Sym) {
-  std::string Str;
-  llvm::raw_string_ostream OS(Str);
-  llvm::yaml::Output Yout(OS);
-  Yout << Sym;
-  return OS.str();
-}
-
-std::unique_ptr<SymbolIndex> loadIndex(llvm::StringRef SymbolFilename,
-                                       llvm::ArrayRef<std::string> URISchemes,
-                                       bool UseDex) {
-  trace::Span OverallTracer("LoadIndex");
-  auto Buffer = llvm::MemoryBuffer::getFile(SymbolFilename);
-  if (!Buffer) {
-    llvm::errs() << "Can't open " << SymbolFilename << "\n";
-    return nullptr;
-  }
-  StringRef Data = Buffer->get()->getBuffer();
-
-  llvm::Optional<SymbolSlab> Slab;
-  if (Data.startswith("RIFF")) { // Magic for binary index file.
-    trace::Span Tracer("ParseRIFF");
-    if (auto RIFF = readIndexFile(Data))
-      Slab = std::move(RIFF->Symbols);
-    else
-      llvm::errs() << "Bad RIFF: " << llvm::toString(RIFF.takeError()) << "\n";
-  } else {
-    trace::Span Tracer("ParseYAML");
-    Slab = symbolsFromYAML(Data);
-  }
-
-  if (!Slab)
-    return nullptr;
-  trace::Span Tracer("BuildIndex");
-  return UseDex ? dex::Dex::build(std::move(*Slab), URISchemes)
-                : MemIndex::build(std::move(*Slab), RefSlab());
 }
 
 } // namespace clangd
