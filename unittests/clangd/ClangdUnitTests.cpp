@@ -74,16 +74,13 @@ Position pos(int line, int character) {
 
 TEST(DiagnosticsTest, OptimizationRemarks) {
   Annotations Test(R"cpp(
-void test(int *A, int Length) {
-#pragma clang loop vectorize(enable) interleave(enable)
-    $loop[[for]] (int i = 0; i < Length; i++) {
-        A[i] = i;
-        if (A[i] > Length)
-        break;
-    }
+void asdf(int *A) {
+    $loop[[for]] (int i = 0; i < 1024; i++)  A[i] ++;
 }
 
-int main() {}
+int main() {
+    int k;
+}
       )cpp");
 
   TestTU TU = TestTU::withCode(Test.code());
@@ -93,7 +90,7 @@ int main() {}
       Diags,
       ElementsAre(
           // This range spans lines.
-          Diag(Test.range("loop"), "vectorized loop (vectorization width: 4, interleaved count: 2)")));
+          Diag(Test.range("loop"), "SCoP begins here.")));
 }
 
 TEST(DiagnosticsTest, DiagnosticRanges) {

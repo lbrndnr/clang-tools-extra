@@ -278,7 +278,7 @@ void ClangdLSPServer::onDocumentDidSave(DidSaveTextDocumentParams &Params) {
     return replyError(ErrorCode::InvalidParams,
                       "onDocumentDidSave called for non-added file");
 
-  Server.addDocument(File, *Code, WantDiagnostics::Yes, true);
+  Server->addDocument(File, *Code, WantDiagnostics::Yes, true);
 }
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(

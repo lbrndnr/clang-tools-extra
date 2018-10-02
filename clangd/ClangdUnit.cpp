@@ -34,8 +34,15 @@
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/CommandLine.h"
 #include <algorithm>
 #include <iostream>
+
+#ifdef LINK_POLLY_INTO_TOOLS
+namespace polly {
+void initializePollyPasses(llvm::PassRegistry &Registry);
+}
+#endif
 
 using namespace clang::clangd;
 using namespace clang;
@@ -152,6 +159,10 @@ ParsedAST::build(std::unique_ptr<clang::CompilerInvocation> CI,
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
+  llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
+#ifdef LINK_POLLY_INTO_TOOLS
+  polly::initializePollyPasses(Registry);
+#endif
 
   std::unique_ptr<ASTFrontendAction> Action = nullptr;
   if (EmitOptimizationRemarks)

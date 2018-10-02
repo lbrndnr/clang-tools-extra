@@ -1,20 +1,23 @@
-set( LLVM_LINK_COMPONENTS
+set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
+  AggressiveInstCombine
   Analysis
+  BitWriter
   CodeGen
   Core
+  Coroutines
   IPO
-  AggressiveInstCombine
+  IRReader
   InstCombine
   Instrumentation
   MC
-  MCParser
   ObjCARCOpts
-  Option
   ScalarOpts
   Support
+  Target
   TransformUtils
   Vectorize
+  Passes
   )
 
 set(CLANGD_ATOMIC_LIB "")
@@ -86,6 +89,10 @@ add_clang_library(clangDaemon
   ${LLVM_PTHREAD_LIB}
   ${CLANGD_ATOMIC_LIB}
   )
+
+if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
+  target_link_libraries(clangDaemon PRIVATE Polly)
+endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
 
 if( LLVM_LIB_FUZZING_ENGINE OR LLVM_USE_SANITIZE_COVERAGE )
   add_subdirectory(fuzzer)
