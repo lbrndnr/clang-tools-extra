@@ -74,8 +74,10 @@ Position pos(int line, int character) {
 
 TEST(DiagnosticsTest, OptimizationRemarks) {
   Annotations Test(R"cpp(
-void asdf(int *A) {
-    $loop[[for]] (int i = 0; i < 1024; i++)  A[i] ++;
+void asdf(int A[][1024]) {
+    $loop[[for]] (int i = 0; i < 1024; i++)  {
+        for (int j = 0; j < 1024; j++) A[i][j] ++;
+    }
 }
 
 int main() {
